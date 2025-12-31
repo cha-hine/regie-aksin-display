@@ -3,14 +3,23 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import pb from '@/lib/pocketbase'
 
 import HelanesTicker from '@/components/front/HelanesTicker.vue'
+import NamazEvent from '@/components/NamazEvent.vue'
 //import SlidesCarousel from '@/components/front/SlidesCarousel.vue'
 //import EventsList from '@/components/front/EventsList.vue'
 //import NamazTimes from '@/components/front/NamazTimes.vue'
 
+const prayerTimes = ref([
+  { name: 'Fajr', time1: '05:30', time2: '05:45' },
+  { name: 'Dhuhr', time1: '12:15', time2: '12:30' },
+  { name: 'Maghrib', time1: '18:20', time2: '18:25' },
+])
+
+const events = ref(['Cours de Coran - Samedi 18h00', 'Conférence islamique - Vendredi'])
+
 const config = ref(null)
 const helanes = ref([])
 const slides = ref([])
-const events = ref([])
+//const events = ref([])
 const namaz = ref(null)
 
 const loading = ref(true)
@@ -112,6 +121,7 @@ onBeforeUnmount(() => {
     <p v-if="error" style="color: red">{{ error }}</p>
     <template v-if="!loading && !error">
       <HelanesTicker v-if="config.Helane?.etat" :data="helanes" :config="config.Helane" />
+      <NamazEvent :prayer-times="prayerTimes" :events="events" />
 
       <!--       <SlidesCarousel
         v-if="config.slides?.enabled !== false"
