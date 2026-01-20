@@ -1,8 +1,6 @@
 // src/router/index.js
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '@/views/HomeView.vue'
-import AdminLogin from '@/views/AdminLogin.vue'
-import AdminDashboard from '@/views/AdminDashboard.vue'
 import pb from '@/lib/pocketbase'
 
 // Définition des routes
@@ -11,17 +9,6 @@ const routes = [
     path: '/',
     name: 'home',
     component: HomeView,
-  },
-  {
-    path: '/admin/login',
-    name: 'admin-login',
-    component: AdminLogin,
-  },
-  {
-    path: '/admin',
-    name: 'admin-dashboard',
-    component: AdminDashboard,
-    meta: { requiresAuth: true }, // route protégée
   },
 ]
 

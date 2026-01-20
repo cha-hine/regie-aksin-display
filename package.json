@@ -14,7 +14,9 @@
     "format": "prettier --write --experimental-cli src/"
   },
   "dependencies": {
+    "axios": "^1.13.2",
     "pocketbase": "^0.26.5",
+    "socket.io-client": "^4.8.3",
     "vue": "^3.5.26",
     "vue-router": "^4.6.4"
   },

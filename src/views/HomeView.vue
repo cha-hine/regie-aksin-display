@@ -1,8 +1,10 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import pb from '@/lib/pocketbase'
+import axios from '@/lib/strapi'
+import socket from '@/lib/socket-io'
 
-import HelanesTicker from '@/components/front/HelanesTicker.vue'
+import HelanesTicker from '@/components/HelanesTicker.vue'
 import NamazEvent from '@/components/NamazEvent.vue'
 //import SlidesCarousel from '@/components/front/SlidesCarousel.vue'
 //import EventsList from '@/components/front/EventsList.vue'
@@ -17,6 +19,7 @@ const prayerTimes = ref([
 const events = ref(['Cours de Coran - Samedi 18h00', 'Conférence islamique - Vendredi'])
 
 const config = ref(null)
+const affichage = ref(null)
 const helanes = ref([])
 const slides = ref([])
 //const events = ref([])
@@ -25,9 +28,10 @@ const namaz = ref(null)
 const loading = ref(true)
 const error = ref(null)
 
-const fetchConfig = async () => {
-  const res = await pb.collection('Configs').getFirstListItem('etat = true')
-  config.value = res.data || null
+const fetchAffichage = async () => {
+  const res = await axios.get('/affichage')
+  console.log('Affichage fetch:', res.data.data)
+  affichage.value = res.data || null
 }
 
 const fetchHelanes = async () => {
@@ -42,11 +46,9 @@ const fetchHelanes = async () => {
   // Convertir en format ISO pour PocketBase
   const startDate = startOfDayGMT4.toISOString().replace('T', ' ').substring(0, 19)
 
-  const res = await pb.collection('Helanes').getList(1, 50, {
-    filter: `etat = true && created >= "${startDate}"`,
-  })
-  console.log('Helanes fetch:', res)
-  helanes.value = res.items
+  const res = await axios.get('/helanes')
+  console.log('helanes fetch:', res.data)
+  helanes.value = res.data || null
 }
 /*
 const fetchSlides = async () => {
@@ -73,44 +75,48 @@ const fetchNamaz = async () => {
   namaz.value = res[0] || null
 }
 */
+// ✅ Enregistrer les listeners au niveau du script setup
+socket.on('connect', () => {
+  console.log('[socket] connected', socket.id)
+})
+
+socket.on('connect_error', (err) => {
+  console.log('[socket] connect_error', err.message, err)
+})
+
+socket.on('update:affichage', () => {
+  fetchAffichage()
+})
+
 onMounted(async () => {
   loading.value = true
   error.value = null
 
+  // Charger les données initiales
   try {
-    await Promise.all([
-      fetchConfig(),
-      fetchHelanes() /*, fetchSlides(), fetchEvents(), fetchNamaz()*/,
-    ])
-
-    pb.collection('Configs').subscribe('*', fetchConfig)
-    pb.collection('Helanes').subscribe('*', fetchHelanes)
-    //pb.collection('slides').subscribe('*', fetchSlides)
-    //pb.collection('events').subscribe('*', fetchEvents)
-    //pb.collection('namaz').subscribe('*', fetchNamaz)
+    await Promise.all([fetchAffichage(), fetchHelanes()])
   } catch (e) {
-    error.value = e?.message || 'Erreur de chargement des données'
+    error.value = e?.message ?? String(e)
   } finally {
     loading.value = false
   }
 })
 
+// ✅ Nettoyer les listeners
 onBeforeUnmount(() => {
-  pb.collection('Configs').unsubscribe('*')
-  pb.collection('Helanes').unsubscribe('*')
-  // pb.collection('slides').unsubscribe('*')
-  // pb.collection('events').unsubscribe('*')
-  // pb.collection('namaz').unsubscribe('*')
+  socket.off('connect')
+  socket.off('connect_error')
+  socket.off('update:affichage')
+  socket.offAny()
 })
 </script>
 
 <template>
   <div
-    v-if="config"
+    v-if="affichage"
     class="home-view"
     :style="{
-      backgroundColor: config.layout?.background || '#000000',
-      color: config.layout?.text || '#ffffff',
+      backgroundColor: '#00ff00',
       width: '1920px',
       height: '1080px',
       padding: '0',
@@ -120,10 +126,16 @@ onBeforeUnmount(() => {
     <p v-if="loading">Chargement…</p>
     <p v-if="error" style="color: red">{{ error }}</p>
     <template v-if="!loading && !error">
-      <HelanesTicker v-if="config.Helane?.etat" :data="helanes" :config="config.Helane" />
-      <NamazEvent :prayer-times="prayerTimes" :events="events" />
+      <NamazEvent
+        v-if="affichage.data.namaz_programme"
+        :prayer-times="prayerTimes"
+        :events="events"
+        :hijri_date="affichage.data.hijri_date"
+        :hijri_date_decalage="affichage.data.hijri_date_decalage"
+      />
+      <HelanesTicker v-if="affichage.data.helane" :data="helanes.data" />
 
-      <!--       <SlidesCarousel
+      <!--   <SlidesCarousel
         v-if="config.slides?.enabled !== false"
         :data="slides"
         :config="config.slides"

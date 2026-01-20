@@ -6,22 +6,18 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
-  config: {
-    type: Object,
-    default: () => ({}),
-  },
 })
 
 const tickerStyle = computed(() => ({
-  backgroundColor: props.config.bg_color || '#000000',
-  color: props.config.text_color || '#ffffff',
-  fontSize: props.config.font_size || '3.25em',
-  fontWeight: props.config.font_weight || 500,
+  backgroundColor: '#000000',
+  color: '#ffffff',
+  fontSize: '3.25em',
+  fontWeight: 500,
   height: '80px',
 }))
 
-// Vitesse en pixels par frame (comme dans votre code original)
-const speed = computed(() => props.config.speed || 1)
+// Vitesse en pixels par frame
+const speed = 1 // ← C'est un nombre, pas une ref
 
 const bandeau1 = ref(null)
 const bandeau2 = ref(null)
@@ -33,8 +29,8 @@ let animationFrame = null
 
 // Texte du bandeau avec séparateurs
 const bandeauText = computed(() => {
-  const sep = '\u00A0\u00A0\u00A0\u00A0-\u00A0\u00A0\u00A0\u00A0' // 4 espaces insécables + tiret
-  const end = '\u00A0\u00A0\u00A0\u00A0|\u00A0\u00A0\u00A0\u00A0' // 4 espaces insécables + pipe
+  const sep = '\u00A0\u00A0\u00A0\u00A0-\u00A0\u00A0\u00A0\u00A0'
+  const end = '\u00A0\u00A0\u00A0\u00A0|\u00A0\u00A0\u00A0\u00A0'
   const noms = props.data.map((item) => item.helane || item.nom || item.name || '')
   if (noms.length === 0) return ''
   return noms.join(sep) + end
@@ -55,8 +51,8 @@ function recalcAndReposition() {
 }
 
 function animate() {
-  x1.value -= speed.value
-  x2.value -= speed.value
+  x1.value -= speed // ← Changé de speed.value à speed
+  x2.value -= speed // ← Changé de speed.value à speed
 
   if (x1.value <= -width) {
     x1.value = x2.value + width
@@ -68,7 +64,6 @@ function animate() {
   animationFrame = requestAnimationFrame(animate)
 }
 
-// Watch pour recalculer quand les données changent
 watch(
   () => props.data,
   async () => {
@@ -118,7 +113,7 @@ onBeforeUnmount(() => {
   position: fixed;
   bottom: 0;
   left: 0;
-  z-index: 100;
+  z-index: 1000;
   display: flex;
   align-items: center;
 }
@@ -141,11 +136,8 @@ onBeforeUnmount(() => {
   left: 0;
   top: 0;
   height: 100%;
-  line-height: inherit;
-  vertical-align: middle;
+  line-height: 80px;
   pointer-events: none;
   user-select: none;
-  display: flex;
-  align-items: center;
 }
 </style>

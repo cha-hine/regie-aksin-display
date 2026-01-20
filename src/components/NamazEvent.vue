@@ -3,24 +3,25 @@
     <div class="clock-section">
       <div class="digital-time">{{ formattedTime }}</div>
       <div class="date-display">{{ formattedDate }}</div>
+      <div v-if="props.hijri_date" class="date-display">{{ hijriDate }}</div>
     </div>
-
     <div class="prayer-times">
-      <h2>🕌 Horaires de Prière</h2>
+      <!-- <h2>NAMAZ TIME</h2> -->
       <div class="prayer-table">
-        <div
-          v-for="prayer in prayerTimes"
-          :key="prayer.name"
-          class="prayer-card"
-          :class="{ active: isCurrentPrayer(prayer.time1, prayer.time2) }"
-        >
+        <div v-for="prayer in prayerTimes" :key="prayer.name" class="prayer-card">
           <div class="prayer-name-header">{{ prayer.name }}</div>
           <div class="prayer-times-row">
             <div class="prayer-time-cell">
-              <div class="time-value">{{ prayer.time1 }}</div>
+              <div class="time-value">
+                <p class="time-title">Awwal Time</p>
+                {{ prayer.time1 }}
+              </div>
             </div>
             <div class="prayer-time-cell">
-              <div class="time-value">{{ prayer.time2 }}</div>
+              <div class="time-value">
+                <p class="time-title">Jamat</p>
+                {{ prayer.time2 }}
+              </div>
             </div>
           </div>
         </div>
@@ -28,7 +29,7 @@
     </div>
 
     <div class="events-section" v-if="events.length > 0">
-      <h3>📅 Événements</h3>
+      <h3>📅 Programme a venir</h3>
       <div v-for="(event, index) in events" :key="index" class="event-item">
         {{ event }}
       </div>
@@ -37,9 +38,17 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 
 const props = defineProps({
+  hijri_date: {
+    type: Boolean,
+    default: false,
+  },
+  hijri_date_decalage: {
+    type: Number,
+    default: 0,
+  },
   prayerTimes: {
     type: Array,
     required: true,
@@ -50,6 +59,92 @@ const props = defineProps({
     default: () => [],
   },
 })
+
+const HIJRI_MONTHS = [
+  'Muharram',
+  'Safar',
+  'Rabi Al-Awwal',
+  'Rabi Al-Thani',
+  'Jamaadi Al-Awwal',
+  'Jamaadi Al-Thani',
+  'Rajab',
+  "Sha'baan",
+  'Ramadhân',
+  'Shawwal',
+  'Zilkaad',
+  'Zilhajj',
+]
+
+const gregorianDate = ref('')
+const hijriDate = ref('')
+
+const getHijriDate = (offsetDays = 0) => {
+  let date = new Date()
+  if (offsetDays !== 0) {
+    date.setDate(date.getDate() + offsetDays)
+  }
+
+  let day = date.getDate()
+  let month = date.getMonth()
+  let year = date.getFullYear()
+
+  if (year < 1900) year += 1900
+
+  let m = month + 1
+  let y = year
+  if (m < 3) {
+    y -= 1
+    m += 12
+  }
+
+  let a = Math.floor(y / 100)
+  let b = 2 - a + Math.floor(a / 4)
+  let jd = Math.floor(365.25 * (y + 4716)) + Math.floor(30.6001 * (m + 1)) + day + b - 1524.5
+
+  let z = jd + 0.5
+  let cyc = Math.floor((z - 1948440) / 10631)
+  let rem = (z - 1948440) % 10631
+  let j = Math.floor((rem - 1) / 354.36667)
+  let r = Math.floor(rem - j * 354.36667 + 0.5)
+
+  let hYear = cyc * 30 + j + 1
+  let hMonth = Math.floor((r - 1) / 29.5) + 1
+  let hDay = Math.floor(r - (hMonth - 1) * 29.5 + 0.5)
+
+  if (hDay === 0) {
+    hMonth -= 1
+    hDay = 30
+  }
+  if (hMonth > 12) {
+    hMonth = 12
+  }
+
+  return {
+    day: hDay,
+    monthName: HIJRI_MONTHS[hMonth - 1],
+    year: hYear,
+    full: `${hDay} ${HIJRI_MONTHS[hMonth - 1]} ${hYear}`,
+  }
+}
+
+const updateDates = () => {
+  // Date Grégorienne
+  const now = new Date()
+  const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }
+  gregorianDate.value = now.toLocaleDateString('fr-FR', options)
+
+  // Date Hijri avec le décalage actuel
+  const hijri = getHijriDate(props.hijri_date_decalage)
+  hijriDate.value = hijri.full
+}
+
+// Watcher pour surveiller les changements de hijri_date_decalage
+watch(
+  () => props.hijri_date_decalage,
+  () => {
+    updateDates()
+  },
+)
 
 const currentTime = ref(new Date())
 const hours = ref(0)
@@ -81,22 +176,16 @@ const updateTime = () => {
   seconds.value = currentTime.value.getSeconds()
 }
 
-const isCurrentPrayer = (time1, time2) => {
-  const now = currentTime.value
-  const currentMinutes = now.getHours() * 60 + now.getMinutes()
-
-  const [hrs1, mins1] = time1.split(':').map(Number)
-  const time1Minutes = hrs1 * 60 + mins1
-
-  const [hrs2, mins2] = time2.split(':').map(Number)
-  const time2Minutes = hrs2 * 60 + mins2
-
-  return (
-    Math.abs(currentMinutes - time1Minutes) < 30 || Math.abs(currentMinutes - time2Minutes) < 30
-  )
-}
+const islamicDate = computed(() => {
+  return new Intl.DateTimeFormat('fr-FR-u-ca-islamic', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(Date.now())
+})
 
 onMounted(() => {
+  updateDates()
   updateTime()
   interval = setInterval(updateTime, 1000)
 })
@@ -110,7 +199,8 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .prayer-display {
-  z-index: 10;
+  font-family: 'Calibri';
+  z-index: 1;
   position: fixed;
   right: 0;
   top: 50%;
@@ -119,13 +209,13 @@ onBeforeUnmount(() => {
   height: 1080px;
   max-height: 100vh;
   background-color: #e9dead;
-  border-radius: 20px 0 0 20px;
-  box-shadow: -10px 0 60px rgba(0, 0, 0, 0.5);
+  /*   border-radius: 20px 0 0 20px;
+ */ /* box-shadow: -10px 0 60px rgba(0, 0, 0, 0.5); */
   display: flex;
   flex-direction: column;
   padding: 40px 30px;
   color: white;
-  z-index: 1000;
+  z-index: 1;
   overflow-y: auto;
 }
 
@@ -134,21 +224,20 @@ onBeforeUnmount(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  margin-bottom: 30px;
+  margin-bottom: 20px;
 }
 
 .digital-time {
   font-size: 48px;
   font-weight: bold;
-  margin-bottom: 10px;
+  margin-bottom: 0;
   color: #000000;
-  text-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
 }
 
 .date-display {
-  font-size: 20px;
+  font-size: 26px;
   color: #000000;
-  margin-bottom: 20px;
+  margin-bottom: 0;
 }
 
 .prayer-times {
@@ -162,9 +251,10 @@ onBeforeUnmount(() => {
 
 .prayer-times h2 {
   text-align: center;
-  margin-bottom: 20px;
+  font-weight: 900;
+  margin: 0 0 30px 0;
   color: #000000;
-  font-size: 28px;
+  font-size: 50px;
   text-transform: uppercase;
   letter-spacing: 2px;
 }
@@ -189,28 +279,16 @@ onBeforeUnmount(() => {
   box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
 }
 
-.prayer-card.active {
-  border-color: #ff4757;
-  box-shadow: 0 0 25px rgba(255, 71, 87, 0.4);
-  background: rgba(255, 71, 87, 0.2);
-}
-
 .prayer-name-header {
   background: rgba(0, 0, 0, 0.15);
-  padding: 12px;
+  padding: 5px;
   text-align: center;
-  font-size: 22px;
+  font-size: 32px;
   font-weight: bold;
   color: #000000;
   text-transform: uppercase;
   letter-spacing: 1px;
   border-bottom: 2px solid rgba(0, 0, 0, 0.2);
-}
-
-.prayer-card.active .prayer-name-header {
-  background: rgba(255, 71, 87, 0.3);
-  color: #ff4757;
-  border-bottom-color: #ff4757;
 }
 
 .prayer-times-row {
@@ -220,7 +298,7 @@ onBeforeUnmount(() => {
 }
 
 .prayer-time-cell {
-  padding: 15px;
+  padding: 10px;
   text-align: center;
   display: flex;
   flex-direction: column;
@@ -233,15 +311,16 @@ onBeforeUnmount(() => {
 }
 
 .time-value {
-  font-size: 26px;
+  font-size: 42px;
   color: #000000;
-  font-weight: bold;
+  font-weight: 800;
   text-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
 }
 
-.prayer-card.active .time-value {
-  color: #ff4757;
-  text-shadow: 0 0 10px rgba(255, 71, 87, 0.3);
+.time-title {
+  font-size: 16px;
+  margin: 0;
+  padding: 0;
 }
 
 .events-section {
@@ -250,15 +329,14 @@ onBeforeUnmount(() => {
   padding: 20px;
   backdrop-filter: blur(10px);
   border: 1px solid rgba(0, 0, 0, 0.1);
-  max-height: 200px;
   overflow-y: auto;
 }
 
 .events-section h3 {
   text-align: center;
-  margin-bottom: 15px;
-  color: #ff4757;
-  font-size: 24px;
+  margin: 0 0 20px 0;
+  color: #4750ff;
+  font-size: 32px;
   text-transform: uppercase;
   letter-spacing: 1px;
 }
@@ -266,10 +344,10 @@ onBeforeUnmount(() => {
 .event-item {
   padding: 10px;
   margin-bottom: 8px;
-  background: rgba(255, 71, 87, 0.2);
+  background: rgba(92, 71, 255, 0.2);
   border-radius: 8px;
-  border-left: 3px solid #ff4757;
-  font-size: 16px;
+  border-left: 3px solid #5947ff;
+  font-size: 24px;
   color: #000000;
 }
 
