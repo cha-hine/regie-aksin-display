@@ -22,7 +22,6 @@ const affichage = ref(null)
 const helanes = ref([])
 const slides = ref([])
 //const events = ref([])
-const namaz = ref(null)
 
 const loading = ref(true)
 const error = ref(null)
