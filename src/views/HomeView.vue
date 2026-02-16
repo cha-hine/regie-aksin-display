@@ -1,24 +1,23 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
-import pb from '@/lib/pocketbase'
 import axios from '@/lib/strapi'
 import socket from '@/lib/socket-io'
+import csvData from '@/assets/time_run_sdn_formatted.csv?raw'
 
 import HelanesTicker from '@/components/HelanesTicker.vue'
 import NamazEvent from '@/components/NamazEvent.vue'
-//import SlidesCarousel from '@/components/front/SlidesCarousel.vue'
+import SlideDisplay from '@/components/SlideDisplay.vue'
 //import EventsList from '@/components/front/EventsList.vue'
 //import NamazTimes from '@/components/front/NamazTimes.vue'
 
-const prayerTimes = ref([
-  { name: 'Fajr', time1: '05:30', time2: '05:45' },
-  { name: 'Dhuhr', time1: '12:15', time2: '12:30' },
-  { name: 'Maghrib', time1: '18:20', time2: '18:25' },
-])
+const prayerTimes = ref([])
+
+const formatJamat = (time) => time ? time.substring(0, 5) : ''
+
+
 
 const events = ref(['Cours de Coran - Samedi 18h00', 'Conférence islamique - Vendredi'])
 
-const config = ref(null)
 const affichage = ref(null)
 const helanes = ref([])
 const slides = ref([])
@@ -28,37 +27,49 @@ const namaz = ref(null)
 const loading = ref(true)
 const error = ref(null)
 
+const loadPrayerTimes = () => {
+  const now = new Date()
+  const day = String(now.getDate()).padStart(2, '0')
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const today = `${day}/${month}`
+
+
+  const lines = csvData.trim().split('\n')
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(';')
+    if (cols[0] === today) {
+      prayerTimes.value = [
+        { name: 'Soubh', awwal: cols[1], jamat: formatJamat(affichage.value.data.namaz_jamat_fajr) },
+        { name: 'Zohrain', awwal: cols[3], jamat: formatJamat(affichage.value.data.namaz_jamat_zohrain) },
+        { name: 'Magribain', awwal: cols[5], jamat: formatJamat(affichage.value.data.namaz_jamat_magribain) },
+      ]
+      break
+    }
+  }
+}
+
 const fetchAffichage = async () => {
   const res = await axios.get('/affichage')
-  console.log('Affichage fetch:', res.data.data)
-  affichage.value = res.data || null
+  affichage.value = res.data || []
+  loadPrayerTimes()
 }
 
 const fetchHelanes = async () => {
-  // Calculer le début de la journée pour GMT+4
-  const now = new Date()
-
-  // Créer une date pour le début de journée en GMT+4
-  // GMT+4 = UTC+4, donc minuit GMT+4 = 20:00 UTC la veille
-  const startOfDayGMT4 = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Dubai' }))
-  startOfDayGMT4.setHours(0, 0, 0, 0)
-
-  // Convertir en format ISO pour PocketBase
-  const startDate = startOfDayGMT4.toISOString().replace('T', ' ').substring(0, 19)
-
   const res = await axios.get('/helanes')
-  console.log('helanes fetch:', res.data)
   helanes.value = res.data || null
 }
-/*
-const fetchSlides = async () => {
-  const res = await pb.collection('slides').getList({
-    filter: 'etat = true',
-    sort: 'created',
-  })
-  slides.value = res
-}
 
+const fetchSlides = async () => {
+  const res = await axios.get('/slides', {
+    params: {
+      populate: 'image',
+    },
+  })
+
+  slides.value = res.data.data || []
+  console.log('Slides fetched:', slides.value)
+}
+/*
 const fetchEvents = async () => {
   const res = await pb.collection('events').getList({
     filter: 'etat = true',
@@ -88,13 +99,31 @@ socket.on('update:affichage', () => {
   fetchAffichage()
 })
 
+socket.on('update:helane', () => {
+  fetchHelanes()
+})
+
+socket.on('create:helane', () => {
+  fetchHelanes()
+})
+
+socket.on('update:slide', () => {
+  console.log("test update:slide event received")
+  fetchSlides()
+})
+
+socket.on('create:slide', () => {
+  fetchSlides()
+})
+
 onMounted(async () => {
   loading.value = true
   error.value = null
 
   // Charger les données initiales
   try {
-    await Promise.all([fetchAffichage(), fetchHelanes()])
+    await Promise.all([fetchAffichage(), fetchHelanes(), fetchSlides()])
+
   } catch (e) {
     error.value = e?.message ?? String(e)
   } finally {
@@ -107,6 +136,10 @@ onBeforeUnmount(() => {
   socket.off('connect')
   socket.off('connect_error')
   socket.off('update:affichage')
+  socket.off('update:helane')
+  socket.off('create:helane')
+  socket.off('update:slide')
+  socket.off('create:slide')
   socket.offAny()
 })
 </script>
@@ -132,26 +165,15 @@ onBeforeUnmount(() => {
         :events="events"
         :hijri_date="affichage.data.hijri_date"
         :hijri_date_decalage="affichage.data.hijri_date_decalage"
+        :pre_texte_date="affichage.data.pre_texte_date"
       />
       <HelanesTicker v-if="affichage.data.helane" :data="helanes.data" />
 
-      <!--   <SlidesCarousel
-        v-if="config.slides?.enabled !== false"
-        :data="slides"
-        :config="config.slides"
-      />
+      <SlideDisplay :slides="slides" />
 
-      <EventsList
-        v-if="config.events?.enabled !== false"
-        :data="events"
-        :config="config.events"
-      />
+      <!--       <EventsList v-if="config.events?.enabled !== false" :data="events" :config="config.events" />
 
-      <NamazTimes
-        v-if="config.namaz?.enabled !== false"
-        :data="namaz"
-        :config="config.namaz"
-      /> -->
+      <NamazTimes v-if="config.namaz?.enabled !== false" :data="namaz" :config="config.namaz" /> -->
     </template>
   </div>
 

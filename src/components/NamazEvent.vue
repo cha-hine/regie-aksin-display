@@ -3,7 +3,10 @@
     <div class="clock-section">
       <div class="digital-time">{{ formattedTime }}</div>
       <div class="date-display">{{ formattedDate }}</div>
-      <div v-if="props.hijri_date" class="date-display">{{ hijriDate }}</div>
+      <div>
+        <span v-if="props.pre_texte_date" class="date-display">{{ props.pre_texte_date }}</span>
+        <span v-if="props.hijri_date" class="date-display">{{ hijriDate }}</span>
+      </div>
     </div>
     <div class="prayer-times">
       <!-- <h2>NAMAZ TIME</h2> -->
@@ -14,13 +17,13 @@
             <div class="prayer-time-cell">
               <div class="time-value">
                 <p class="time-title">Awwal Time</p>
-                {{ prayer.time1 }}
+                {{ prayer.awwal }}
               </div>
             </div>
             <div class="prayer-time-cell">
               <div class="time-value">
                 <p class="time-title">Jamat</p>
-                {{ prayer.time2 }}
+                {{ prayer.jamat }}
               </div>
             </div>
           </div>
@@ -28,12 +31,12 @@
       </div>
     </div>
 
-    <div class="events-section" v-if="events.length > 0">
+    <!-- <div class="events-section" v-if="events.length > 0">
       <h3>📅 Programme a venir</h3>
       <div v-for="(event, index) in events" :key="index" class="event-item">
         {{ event }}
       </div>
-    </div>
+    </div> -->
   </div>
 </template>
 
@@ -48,6 +51,10 @@ const props = defineProps({
   hijri_date_decalage: {
     type: Number,
     default: 0,
+  },
+  pre_texte_date: {
+    type: String,
+    default: '',
   },
   prayerTimes: {
     type: Array,
@@ -101,23 +108,45 @@ const getHijriDate = (offsetDays = 0) => {
   let b = 2 - a + Math.floor(a / 4)
   let jd = Math.floor(365.25 * (y + 4716)) + Math.floor(30.6001 * (m + 1)) + day + b - 1524.5
 
-  let z = jd + 0.5
-  let cyc = Math.floor((z - 1948440) / 10631)
-  let rem = (z - 1948440) % 10631
-  let j = Math.floor((rem - 1) / 354.36667)
-  let r = Math.floor(rem - j * 354.36667 + 0.5)
+  // Epoch Hijri : 1er Muharram 1 AH = JD 1948439.5
+  const hijriEpoch = 1948439.5
 
-  let hYear = cyc * 30 + j + 1
-  let hMonth = Math.floor((r - 1) / 29.5) + 1
-  let hDay = Math.floor(r - (hMonth - 1) * 29.5 + 0.5)
+  // Jours depuis l'époque Hijri
+  let daysSinceEpoch = Math.floor(jd - hijriEpoch)
 
-  if (hDay === 0) {
-    hMonth -= 1
-    hDay = 30
+  // Années bissextiles dans un cycle de 30 ans : 2, 5, 7, 10, 13, 16, 18, 21, 24, 26, 29
+  const leapYears = [2, 5, 7, 10, 13, 16, 18, 21, 24, 26, 29]
+
+  // Fonction pour vérifier si une année Hijri est bissextile
+  const isHijriLeapYear = (hYear) => leapYears.includes(hYear % 30)
+
+  // Jours dans une année Hijri (354 ou 355)
+  const daysInHijriYear = (hYear) => (isHijriLeapYear(hYear) ? 355 : 354)
+
+  // Jours dans un mois Hijri (mois impairs = 30, pairs = 29, sauf mois 12 en année bissextile = 30)
+  const daysInHijriMonth = (hMonth, hYear) => {
+    if (hMonth === 12 && isHijriLeapYear(hYear)) return 30
+    return hMonth % 2 === 1 ? 30 : 29
   }
-  if (hMonth > 12) {
-    hMonth = 12
+
+  // Calculer l'année Hijri
+  let hYear = 1
+  let remainingDays = daysSinceEpoch
+
+  while (remainingDays >= daysInHijriYear(hYear)) {
+    remainingDays -= daysInHijriYear(hYear)
+    hYear++
   }
+
+  // Calculer le mois Hijri
+  let hMonth = 1
+  while (remainingDays >= daysInHijriMonth(hMonth, hYear)) {
+    remainingDays -= daysInHijriMonth(hMonth, hYear)
+    hMonth++
+  }
+
+  // Le jour (1-indexé)
+  let hDay = remainingDays + 1
 
   return {
     day: hDay,
@@ -176,14 +205,6 @@ const updateTime = () => {
   seconds.value = currentTime.value.getSeconds()
 }
 
-const islamicDate = computed(() => {
-  return new Intl.DateTimeFormat('fr-FR-u-ca-islamic', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  }).format(Date.now())
-})
-
 onMounted(() => {
   updateDates()
   updateTime()
@@ -228,14 +249,14 @@ onBeforeUnmount(() => {
 }
 
 .digital-time {
-  font-size: 48px;
+  font-size: 80px;
   font-weight: bold;
   margin-bottom: 0;
   color: #000000;
 }
 
 .date-display {
-  font-size: 26px;
+  font-size: 36px;
   color: #000000;
   margin-bottom: 0;
 }
@@ -254,7 +275,7 @@ onBeforeUnmount(() => {
   font-weight: 900;
   margin: 0 0 30px 0;
   color: #000000;
-  font-size: 50px;
+  font-size: 55px;
   text-transform: uppercase;
   letter-spacing: 2px;
 }
@@ -283,7 +304,7 @@ onBeforeUnmount(() => {
   background: rgba(0, 0, 0, 0.15);
   padding: 5px;
   text-align: center;
-  font-size: 32px;
+  font-size: 40px;
   font-weight: bold;
   color: #000000;
   text-transform: uppercase;
@@ -311,14 +332,14 @@ onBeforeUnmount(() => {
 }
 
 .time-value {
-  font-size: 42px;
+  font-size: 54px;
   color: #000000;
   font-weight: 800;
   text-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
 }
 
 .time-title {
-  font-size: 16px;
+  font-size: 26px;
   margin: 0;
   padding: 0;
 }
